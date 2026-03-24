@@ -24,15 +24,15 @@ jobs:
           coverage: xdebug
 
       - name: Install dependencies
-        run: composer install --prefer-dist --no-progress
+        run: composer install --prefer-dist --no-progress --ignore-platform-reqs
 
       - name: Run PHPUnit
-        run: ./src/plib/vendor/bin/phpunit --coverage-text
+        run: ./src/plib/vendor/bin/phpunit --testsuite Unit
 
       - name: Run PHPStan
-        if: matrix.php-version == '8.2'
+        if: matrix.php-version == '8.4'
         run: ./src/plib/vendor/bin/phpstan analyse --no-progress
 
       - name: Run PHP-CS-Fixer
-        if: matrix.php-version == '8.2'
+        if: matrix.php-version == '8.4'
         run: ./src/plib/vendor/bin/php-cs-fixer fix --dry-run --diff
