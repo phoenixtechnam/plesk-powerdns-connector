@@ -9,7 +9,7 @@ This extension registers a **Custom DNS Backend** with Plesk. Every time a DNS z
 ## Requirements
 
 - Plesk Obsidian 18.0.40+
-- PHP 7.4+
+- PHP 8.0+
 - PowerDNS Authoritative Server 4.x with the HTTP API enabled
 - **No other DNS extension active** (Slave DNS Manager, Route53, DigitalOcean DNS must be disabled)
 
@@ -112,6 +112,9 @@ src/
 │   ├── library/
 │   │   ├── Client.php          # PowerDNS API client
 │   │   ├── ZoneFormatter.php   # Plesk → PDNS format translator
+│   │   ├── CommandHandler.php   # Zone command dispatcher (create/update/delete/PTR)
+│   │   ├── DnsUtils.php        # Shared DNS utilities (trailing dot, etc.)
+│   │   ├── ReverseDns.php      # Reverse DNS zone/PTR name builders
 │   │   ├── Exception.php       # Custom exception
 │   │   ├── Logger.php          # Logging utility
 │   │   └── Form/

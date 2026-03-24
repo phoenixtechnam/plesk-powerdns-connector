@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 // Copyright 2024. All rights reserved.
 
 /**
@@ -74,6 +77,25 @@ class Modules_Powerdns_Form_Settings extends pm_Form_Simple
             'multiOptions' => [
                 'Native'  => 'Native (shared database, no NOTIFY)',
                 'Primary' => 'Primary (NOTIFY + AXFR to secondaries)',
+            ],
+            'validators' => [
+                ['InArray', true, ['haystack' => ['Native', 'Primary']]],
+            ],
+        ]);
+
+        $this->addElement('select', 'ipv6Prefix', [
+            'label'        => 'IPv6 Reverse Zone Prefix',
+            'description'  => 'Prefix length (in bits) for IPv6 reverse DNS zone delegation. Must match your provider allocation.',
+            'required'     => true,
+            'value'        => pm_Settings::get('ipv6Prefix', '48'),
+            'multiOptions' => [
+                '32' => '/32 (8 nibbles — large allocation)',
+                '48' => '/48 (12 nibbles — default ISP delegation)',
+                '56' => '/56 (14 nibbles)',
+                '64' => '/64 (16 nibbles — single subnet)',
+            ],
+            'validators' => [
+                ['InArray', true, ['haystack' => ['32', '48', '56', '64']]],
             ],
         ]);
 
@@ -154,6 +176,7 @@ class Modules_Powerdns_Form_Settings extends pm_Form_Simple
         pm_Settings::set('ns1', $values['ns1']);
         pm_Settings::set('ns2', $values['ns2'] ?? '');
         pm_Settings::set('zoneKind', $values['zoneKind'] ?? 'Native');
+        pm_Settings::set('ipv6Prefix', $values['ipv6Prefix'] ?? '48');
         pm_Settings::set('dnssec', !empty($values['dnssec']) ? '1' : '');
         pm_Settings::set('enabled', !empty($values['enabled']) ? '1' : '');
     }

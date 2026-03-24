@@ -1,8 +1,19 @@
-/vendor/
-/src/plib/vendor/
-/composer.lock
-/.phpunit.cache/
-*.phar
+# PHPUnit
+.phpunit.result.cache
+.phpunit.cache/
+
+# PHP-CS-Fixer
+.php-cs-fixer.cache
+
+# IDE
 .idea/
 .vscode/
-.claude/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+powerdns.zip

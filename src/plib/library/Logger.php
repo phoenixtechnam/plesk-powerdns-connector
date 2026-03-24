@@ -1,9 +1,19 @@
 <?php
+
+declare(strict_types=1);
+
 // Copyright 2024. All rights reserved.
 
 /**
- * Simple logger that writes to stdout (captured by Plesk)
- * and persists recent errors via pm_Settings for the admin UI.
+ * Simple logger that writes to STDERR and persists recent errors
+ * via pm_Settings for the admin UI.
+ *
+ * Context behaviour:
+ * - CLI scripts (powerdns.php): STDERR is captured by Plesk's custom DNS
+ *   backend handler and appears in the Plesk panel logs.
+ * - Web requests (IndexController): STDERR goes to the web server error log
+ *   (e.g. Apache/nginx), not the Plesk extension log.  Errors are still
+ *   persisted via pm_Settings and displayed in the admin Tools tab.
  */
 class Modules_Powerdns_Logger
 {
@@ -44,7 +54,7 @@ class Modules_Powerdns_Logger
                 'message'   => $message,
             ]);
             $errors = array_slice($errors, 0, self::MAX_STORED_ERRORS);
-            pm_Settings::set(self::SETTINGS_KEY, json_encode($errors));
+            pm_Settings::set(self::SETTINGS_KEY, json_encode($errors) ?: '[]');
         } catch (\Exception $e) {
             // Settings storage unavailable — ignore silently
         }
@@ -56,7 +66,7 @@ class Modules_Powerdns_Logger
     public static function getStoredErrors(): array
     {
         try {
-            $json = pm_Settings::get(self::SETTINGS_KEY, '[]');
+            $json = pm_Settings::get(self::SETTINGS_KEY, '[]') ?? '[]';
             return json_decode($json, true) ?: [];
         } catch (\Exception $e) {
             return [];

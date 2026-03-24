@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 // Copyright 2024. All rights reserved.
 
 /**
@@ -31,9 +34,9 @@ class Modules_Powerdns_ZoneFormatter
      *                               If null, falls back to the first NS record
      *                               found in the zone data.
      */
-    public function __construct(?string $primaryNs = null)
+    public function __construct(?string $primaryNs = null, ?Modules_Powerdns_Logger $logger = null)
     {
-        $this->logger = new Modules_Powerdns_Logger();
+        $this->logger = $logger ?? new Modules_Powerdns_Logger();
         $this->primaryNs = $primaryNs;
     }
 
@@ -52,10 +55,7 @@ class Modules_Powerdns_ZoneFormatter
 
         // Build SOA rrset from the soa object
         if (isset($zoneData['soa'])) {
-            $soaRrset = $this->buildSoaRrset($zoneData['name'], $zoneData['soa'], $primaryNs);
-            if ($soaRrset !== null) {
-                $rrsets[] = $soaRrset;
-            }
+            $rrsets[] = $this->buildSoaRrset($zoneData['name'], $zoneData['soa'], $primaryNs);
         }
 
         // Group rr entries by (name, type) to form rrsets
@@ -65,26 +65,6 @@ class Modules_Powerdns_ZoneFormatter
                 [$name, $type] = explode('|', $key, 2);
                 $rrsets[] = $this->buildRrset($name, $type, $records);
             }
-        }
-
-        return $rrsets;
-    }
-
-    /**
-     * Build a single rrset for a full zone replacement (used on create).
-     * Excludes SOA (PowerDNS auto-generates it on zone creation).
-     *
-     * @param array $rr Plesk rr array
-     * @return array     rrsets without SOA
-     */
-    public function pleskRrToRrsets(array $rr): array
-    {
-        $rrsets = [];
-        $grouped = $this->groupRecords($rr);
-
-        foreach ($grouped as $key => $records) {
-            [$name, $type] = explode('|', $key, 2);
-            $rrsets[] = $this->buildRrset($name, $type, $records);
         }
 
         return $rrsets;
@@ -108,7 +88,7 @@ class Modules_Powerdns_ZoneFormatter
                 continue;
             }
 
-            $host = $this->ensureTrailingDot($rr['host'] ?? '');
+            $host = Modules_Powerdns_DnsUtils::ensureTrailingDot($rr['host'] ?? '');
             $key = "{$host}|{$type}";
 
             $grouped[$key][] = $rr;
@@ -156,20 +136,20 @@ class Modules_Powerdns_ZoneFormatter
     {
         // 1. Explicit config
         if ($this->primaryNs !== null && $this->primaryNs !== '') {
-            return $this->ensureTrailingDot($this->primaryNs);
+            return Modules_Powerdns_DnsUtils::ensureTrailingDot($this->primaryNs);
         }
 
         // 2. First NS record in zone data
         if (isset($zoneData['rr']) && is_array($zoneData['rr'])) {
             foreach ($zoneData['rr'] as $rr) {
                 if (strtoupper($rr['type'] ?? '') === 'NS' && !empty($rr['value'])) {
-                    return $this->ensureTrailingDot($rr['value']);
+                    return Modules_Powerdns_DnsUtils::ensureTrailingDot($rr['value']);
                 }
             }
         }
 
         // 3. Fallback
-        $zoneName = $this->ensureTrailingDot($zoneData['name'] ?? '');
+        $zoneName = Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneData['name'] ?? '');
         return "ns1.{$zoneName}";
     }
 
@@ -180,17 +160,18 @@ class Modules_Powerdns_ZoneFormatter
      * @param array  $soa       Plesk SOA data (email, ttl, serial, refresh, retry, expire, minimum)
      * @param string $primaryNs Resolved primary nameserver FQDN
      */
-    private function buildSoaRrset(string $zoneName, array $soa, string $primaryNs): ?array
+    private function buildSoaRrset(string $zoneName, array $soa, string $primaryNs): array
     {
-        $zoneName = $this->ensureTrailingDot($zoneName);
+        $zoneName = Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneName);
 
         // Plesk SOA fields: email, ttl, serial, refresh, retry, expire, minimum
-        $email = $soa['email'] ?? "hostmaster.{$zoneName}";
+        // Guard against both null and empty string — Plesk may send either
+        $email = !empty($soa['email']) ? $soa['email'] : "hostmaster.{$zoneName}";
         // Convert email@domain to email.domain format for SOA
         $email = str_replace('@', '.', $email);
-        $email = $this->ensureTrailingDot($email);
+        $email = Modules_Powerdns_DnsUtils::ensureTrailingDot($email);
 
-        $serial  = $soa['serial']  ?? date('Ymd') . '01';
+        $serial  = !empty($soa['serial']) ? $soa['serial'] : date('Ymd') . '01';
         $refresh = $soa['refresh'] ?? 10800;
         $retry   = $soa['retry']   ?? 3600;
         $expire  = $soa['expire']  ?? 604800;
@@ -230,7 +211,7 @@ class Modules_Powerdns_ZoneFormatter
             case 'CNAME':
             case 'NS':
             case 'PTR':
-                return $this->ensureTrailingDot($value);
+                return Modules_Powerdns_DnsUtils::ensureTrailingDot($value);
 
             case 'MX':
                 // Plesk format: "10 mail.example.com."
@@ -254,12 +235,15 @@ class Modules_Powerdns_ZoneFormatter
      */
     private function formatTxtContent(string $value): string
     {
-        // If already quoted, return as-is
-        if (isset($value[0]) && $value[0] === '"' && substr($value, -1) === '"') {
+        // If already properly quoted (balanced, non-empty content), return as-is.
+        // Handles single-string ("...") and multi-string ("..." "...") TXT values.
+        if (strlen($value) >= 2 && $value[0] === '"' && $value[-1] === '"') {
             return $value;
         }
 
-        return '"' . str_replace('"', '\\"', $value) . '"';
+        // Strip any unbalanced leading/trailing quotes before re-quoting
+        $stripped = trim($value, '"');
+        return '"' . str_replace('"', '\\"', $stripped) . '"';
     }
 
     /**
@@ -267,9 +251,9 @@ class Modules_Powerdns_ZoneFormatter
      */
     private function formatMxContent(string $value): string
     {
-        $parts = preg_split('/\s+/', trim($value), 2);
+        $parts = preg_split('/\s+/', trim($value), 2) ?: [];
         if (count($parts) === 2) {
-            return $parts[0] . ' ' . $this->ensureTrailingDot($parts[1]);
+            return $parts[0] . ' ' . Modules_Powerdns_DnsUtils::ensureTrailingDot($parts[1]);
         }
         return $value;
     }
@@ -280,19 +264,11 @@ class Modules_Powerdns_ZoneFormatter
      */
     private function formatSrvContent(string $value): string
     {
-        $parts = preg_split('/\s+/', trim($value), 4);
+        $parts = preg_split('/\s+/', trim($value), 4) ?: [];
         if (count($parts) === 4) {
-            $parts[3] = $this->ensureTrailingDot($parts[3]);
+            $parts[3] = Modules_Powerdns_DnsUtils::ensureTrailingDot($parts[3]);
             return implode(' ', $parts);
         }
         return $value;
-    }
-
-    private function ensureTrailingDot(string $name): string
-    {
-        if ($name === '' || $name === '.') {
-            return $name;
-        }
-        return rtrim($name, '.') . '.';
     }
 }

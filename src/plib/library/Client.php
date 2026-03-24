@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 // Copyright 2024. All rights reserved.
 
 /**
@@ -18,7 +21,16 @@ class Modules_Powerdns_Client
     /** @var Modules_Powerdns_Logger */
     private $logger;
 
+    /** Maximum number of retry attempts for transient errors (5xx, 429). */
     private const MAX_RETRIES = 2;
+
+    /**
+     * Delay between retries in seconds.
+     *
+     * Note: uses blocking sleep() — acceptable for the CLI backend script
+     * (called by Plesk per zone event), but will block the PHP process for
+     * up to MAX_RETRIES * RETRY_DELAY_SECONDS = 6 seconds on repeated failures.
+     */
     private const RETRY_DELAY_SECONDS = 3;
 
     /**
@@ -26,12 +38,17 @@ class Modules_Powerdns_Client
      * @param string $apiKey   X-API-Key value
      * @param string $serverId Server identifier (usually "localhost")
      */
-    public function __construct(string $apiUrl, string $apiKey, string $serverId = 'localhost')
-    {
+    public function __construct(
+        string $apiUrl,
+        string $apiKey,
+        string $serverId = 'localhost',
+        ?\GuzzleHttp\Client $httpClient = null,
+        ?Modules_Powerdns_Logger $logger = null
+    ) {
         $this->serverId = $serverId;
-        $this->logger = new Modules_Powerdns_Logger();
+        $this->logger = $logger ?? new Modules_Powerdns_Logger();
 
-        $this->http = new \GuzzleHttp\Client([
+        $this->http = $httpClient ?? new \GuzzleHttp\Client([
             'base_uri' => rtrim($apiUrl, '/') . '/api/v1/',
             'headers'  => [
                 'X-API-Key'    => $apiKey,
@@ -55,8 +72,7 @@ class Modules_Powerdns_Client
      */
     public function testConnection(): array
     {
-        $response = $this->request('GET', "servers/{$this->serverId}");
-        return $response;
+        return $this->request('GET', "servers/{$this->serverId}");
     }
 
     // ──────────────────────────────────────────────
@@ -113,10 +129,10 @@ class Modules_Powerdns_Client
         }));
 
         $payload = [
-            'name'        => $this->ensureTrailingDot($zoneName),
+            'name'        => Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneName),
             'kind'        => $kind,
             'dnssec'      => $dnssec,
-            'nameservers' => array_map([$this, 'ensureTrailingDot'], $nameservers),
+            'nameservers' => array_map([Modules_Powerdns_DnsUtils::class, 'ensureTrailingDot'], $nameservers),
             'rrsets'      => $filteredRrsets,
         ];
 
@@ -136,7 +152,7 @@ class Modules_Powerdns_Client
      */
     public function enableDnssec(string $zoneName, string $algorithm = 'ecdsap256sha256'): array
     {
-        $zoneName = $this->ensureTrailingDot($zoneName);
+        $zoneName = Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneName);
         $this->logger->info("Enabling DNSSEC for zone: {$zoneName} (algo={$algorithm})");
         return $this->request('POST', "servers/{$this->serverId}/zones/{$zoneName}/cryptokeys", [
             'keytype'   => 'ksk',
@@ -152,7 +168,7 @@ class Modules_Powerdns_Client
      */
     public function disableDnssec(string $zoneName): void
     {
-        $zoneName = $this->ensureTrailingDot($zoneName);
+        $zoneName = Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneName);
         $this->logger->info("Disabling DNSSEC for zone: {$zoneName}");
         $keys = $this->getCryptokeys($zoneName);
         foreach ($keys as $key) {
@@ -173,7 +189,7 @@ class Modules_Powerdns_Client
      */
     public function getCryptokeys(string $zoneName): array
     {
-        $zoneName = $this->ensureTrailingDot($zoneName);
+        $zoneName = Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneName);
         return $this->request('GET', "servers/{$this->serverId}/zones/{$zoneName}/cryptokeys");
     }
 
@@ -185,10 +201,10 @@ class Modules_Powerdns_Client
      */
     public function updateZone(string $zoneName, array $rrsets): void
     {
-        $zoneName = $this->ensureTrailingDot($zoneName);
+        $zoneName = Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneName);
         $payload = ['rrsets' => $rrsets];
 
-        $this->logger->info("Updating zone: {$zoneName} (" . count($rrsets) . " rrsets)");
+        $this->logger->info("Updating zone: {$zoneName} (" . count($rrsets) . ' rrsets)');
         $this->request('PATCH', "servers/{$this->serverId}/zones/{$zoneName}", $payload);
     }
 
@@ -197,7 +213,7 @@ class Modules_Powerdns_Client
      */
     public function deleteZone(string $zoneName): void
     {
-        $zoneName = $this->ensureTrailingDot($zoneName);
+        $zoneName = Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneName);
         $this->logger->info("Deleting zone: {$zoneName}");
         $this->request('DELETE', "servers/{$this->serverId}/zones/{$zoneName}");
     }
@@ -252,8 +268,8 @@ class Modules_Powerdns_Client
 
             $errorMsg = $decoded['error'] ?? $rawBody;
 
-            // Do not retry client errors (4xx) except 409 (conflict) and 429 (rate limit)
-            if ($statusCode >= 400 && $statusCode < 500 && $statusCode !== 409 && $statusCode !== 429) {
+            // Do not retry client errors (4xx) except 429 (rate limit)
+            if ($statusCode >= 400 && $statusCode < 500 && $statusCode !== 429) {
                 throw new Modules_Powerdns_Exception(
                     "PowerDNS API error ({$statusCode}): {$errorMsg}",
                     $statusCode,
@@ -268,11 +284,11 @@ class Modules_Powerdns_Client
             );
         }
 
-        throw $lastException;
-    }
+        /** @phpstan-ignore identical.alwaysFalse (defensive guard for safety) */
+        if ($lastException === null) {
+            throw new Modules_Powerdns_Exception('Unknown PowerDNS API error');
+        }
 
-    private function ensureTrailingDot(string $name): string
-    {
-        return rtrim($name, '.') . '.';
+        throw $lastException;
     }
 }

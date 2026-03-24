@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 // Copyright 2024. All rights reserved.
 
 /**
@@ -15,7 +18,7 @@ try {
     pm_ApiCli::call('server_dns', ['--disable-custom-backend']);
     echo "PowerDNS custom DNS backend unregistered successfully.\n";
 } catch (pm_Exception $e) {
-    echo "Warning: failed to unregister custom DNS backend: " . $e->getMessage() . "\n";
+    echo 'Warning: failed to unregister custom DNS backend: ' . $e->getMessage() . "\n";
     // Don't block uninstallation on this error
 }
 

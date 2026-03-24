@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 // Copyright 2024. All rights reserved.
 
 /**
@@ -75,7 +78,7 @@ class IndexController extends pm_Controller_Action
 
         $apiUrl   = pm_Settings::get('apiUrl');
         $apiKey   = pm_Settings::get('apiKey');
-        $serverId = pm_Settings::get('serverId', 'localhost');
+        $serverId = pm_Settings::get('serverId', 'localhost') ?? 'localhost';
 
         if (empty($apiUrl) || empty($apiKey)) {
             $this->_status->addError('PowerDNS API credentials not configured.');
@@ -83,20 +86,29 @@ class IndexController extends pm_Controller_Action
             return;
         }
 
-        $client = new Modules_Powerdns_Client($apiUrl, $apiKey, $serverId);
-
         $ns1 = pm_Settings::get('ns1', '');
         $ns2 = pm_Settings::get('ns2', '');
         $nameservers = array_filter([$ns1, $ns2]);
-        $dnssec = (bool) pm_Settings::get('dnssec', '');
-        $zoneKind = pm_Settings::get('zoneKind', 'Native');
-        $formatter = new Modules_Powerdns_ZoneFormatter($ns1);
 
         if (empty($nameservers)) {
             $this->_status->addError('Nameservers not configured.');
             $this->_redirect('/index/tools');
             return;
         }
+
+        $logger = new Modules_Powerdns_Logger();
+        $client = new Modules_Powerdns_Client($apiUrl, $apiKey, $serverId);
+        $formatter = new Modules_Powerdns_ZoneFormatter($ns1);
+
+        $handler = new Modules_Powerdns_CommandHandler(
+            $client,
+            $formatter,
+            $logger,
+            $nameservers,
+            (bool) pm_Settings::get('dnssec', ''),
+            pm_Settings::get('zoneKind', 'Native') ?? 'Native',
+            (int) (pm_Settings::get('ipv6Prefix', '48') ?? '48')
+        );
 
         $synced  = 0;
         $failed  = 0;
@@ -117,21 +129,16 @@ class IndexController extends pm_Controller_Action
                     continue;
                 }
 
-                $zoneName = rtrim($domainName, '.') . '.';
-                $rrsets = $formatter->pleskToRrsets($zoneData);
-
-                $existing = $client->getZone($zoneName);
-                if ($existing === null) {
-                    $client->createZone($zoneName, $nameservers, $rrsets, $dnssec, $zoneKind);
-                } else {
-                    $client->updateZone($zoneName, $rrsets);
-                }
+                // Delegate to CommandHandler for consistent create-or-update logic
+                $handler->dispatch([
+                    'command' => 'update',
+                    'zone' => $zoneData,
+                ]);
 
                 $synced++;
             } catch (\Exception $e) {
                 $failed++;
                 $errors[] = $domainName;
-                $logger = new Modules_Powerdns_Logger();
                 $logger->err("Sync failed for {$domainName}: {$e->getMessage()}");
             }
         }
@@ -224,6 +231,8 @@ XML;
         try {
             $response = pm_ApiRpc::getService()->call($request);
         } catch (\Exception $e) {
+            $logger = new Modules_Powerdns_Logger();
+            $logger->err("Failed to get zone data for {$domainName}: " . $e->getMessage());
             return null;
         }
 

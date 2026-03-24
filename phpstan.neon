@@ -1,0 +1,15 @@
+parameters:
+    level: 8
+    paths:
+        - src/plib/library
+        - src/plib/controllers
+        - src/plib/scripts
+    scanFiles:
+        - stubs/plesk.php
+    excludePaths:
+        - src/plib/vendor
+    ignoreErrors:
+        # PowerDNS API returns untyped JSON arrays — specifying value types
+        # would require extensive runtime assertions for no practical benefit
+        -
+            identifier: missingType.iterableValue

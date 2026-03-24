@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 // Copyright 2024. All rights reserved.
 
 /**
@@ -25,7 +28,7 @@ try {
 
     echo "PowerDNS custom DNS backend registered successfully.\n";
 } catch (pm_Exception $e) {
-    echo "Failed to register custom DNS backend: " . $e->getMessage() . "\n";
+    echo 'Failed to register custom DNS backend: ' . $e->getMessage() . "\n";
     exit(1);
 }
 
@@ -37,8 +40,9 @@ $defaults = [
     'serverId' => 'localhost',
     'ns1'      => '',
     'ns2'      => '',
-    'zoneKind' => 'Native',
-    'dnssec'   => '',
+    'zoneKind'   => 'Native',
+    'ipv6Prefix' => '48',
+    'dnssec'     => '',
 ];
 
 foreach ($defaults as $key => $defaultValue) {

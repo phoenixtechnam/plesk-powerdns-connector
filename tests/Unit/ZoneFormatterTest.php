@@ -1,4 +1,5 @@
 <?php
+
 // Copyright 2024. All rights reserved.
 
 declare(strict_types=1);
@@ -9,32 +10,7 @@ declare(strict_types=1);
  * These tests verify the translation from Plesk's DNS zone JSON
  * format to PowerDNS rrset format.  They do NOT require a running
  * PowerDNS instance or a Plesk environment.
- *
- * To run without Plesk stubs, the test bootstraps mock classes for
- * pm_Settings and pm_Exception.
  */
-
-// ── Stub Plesk classes for standalone testing ───────────────
-if (!class_exists('pm_Exception')) {
-    class pm_Exception extends \RuntimeException {}
-}
-
-if (!class_exists('pm_Settings')) {
-    class pm_Settings {
-        private static array $store = [];
-        public static function get(string $key, $default = null) {
-            return self::$store[$key] ?? $default;
-        }
-        public static function set(string $key, $value): void {
-            self::$store[$key] = $value;
-        }
-    }
-}
-
-// Load the classes under test
-require_once __DIR__ . '/../../src/plib/library/Exception.php';
-require_once __DIR__ . '/../../src/plib/library/Logger.php';
-require_once __DIR__ . '/../../src/plib/library/ZoneFormatter.php';
 
 use PHPUnit\Framework\TestCase;
 
@@ -190,6 +166,36 @@ class ZoneFormatterTest extends TestCase
         $this->assertSame('"v=spf1 ~all"', $rrset['records'][0]['content']);
     }
 
+    public function testTxtRecordUnbalancedQuote(): void
+    {
+        $zone = [
+            'name' => 'example.com.',
+            'rr'   => [
+                ['host' => 'example.com.', 'type' => 'TXT', 'value' => '"v=spf1 ~all', 'ttl' => 3600],
+            ],
+        ];
+
+        $rrsets = $this->formatter->pleskToRrsets($zone);
+        $rrset = $this->findRrset($rrsets, 'example.com.', 'TXT');
+        // Unbalanced quote should be stripped and re-quoted properly
+        $this->assertSame('"v=spf1 ~all"', $rrset['records'][0]['content']);
+    }
+
+    public function testTxtRecordMultiString(): void
+    {
+        $zone = [
+            'name' => 'example.com.',
+            'rr'   => [
+                ['host' => 'example.com.', 'type' => 'TXT', 'value' => '"part one" "part two"', 'ttl' => 3600],
+            ],
+        ];
+
+        $rrsets = $this->formatter->pleskToRrsets($zone);
+        $rrset = $this->findRrset($rrsets, 'example.com.', 'TXT');
+        // Multi-string TXT (starts and ends with quote) should pass through as-is
+        $this->assertSame('"part one" "part two"', $rrset['records'][0]['content']);
+    }
+
     // ── SRV records ─────────────────────────────────────
 
     public function testSrvRecord(): void
@@ -279,6 +285,48 @@ class ZoneFormatterTest extends TestCase
         $content = $soaRrset['records'][0]['content'];
         // Should pick the first NS record as primary
         $this->assertStringStartsWith('ns1.hosting.com.', $content);
+    }
+
+    public function testSoaEmptyEmailUsesDefault(): void
+    {
+        $formatter = new Modules_Powerdns_ZoneFormatter('ns1.example.com');
+        $zone = [
+            'name' => 'example.com.',
+            'soa'  => [
+                'email'  => '',
+                'serial' => 2024010101,
+            ],
+            'rr'   => [],
+        ];
+
+        $rrsets = $formatter->pleskToRrsets($zone);
+        $soaRrset = $this->findRrset($rrsets, 'example.com.', 'SOA');
+        $this->assertNotNull($soaRrset);
+
+        $content = $soaRrset['records'][0]['content'];
+        // Empty email should fall back to hostmaster.zone
+        $this->assertStringContainsString('hostmaster.example.com.', $content);
+    }
+
+    public function testSoaEmptySerialUsesGenerated(): void
+    {
+        $formatter = new Modules_Powerdns_ZoneFormatter('ns1.example.com');
+        $zone = [
+            'name' => 'example.com.',
+            'soa'  => [
+                'email'  => 'admin@example.com',
+                'serial' => '',
+            ],
+            'rr'   => [],
+        ];
+
+        $rrsets = $formatter->pleskToRrsets($zone);
+        $soaRrset = $this->findRrset($rrsets, 'example.com.', 'SOA');
+        $this->assertNotNull($soaRrset);
+
+        $content = $soaRrset['records'][0]['content'];
+        // Empty serial should generate a date-based serial (YYYYMMDD01)
+        $this->assertMatchesRegularExpression('/\d{10}/', $content);
     }
 
     // ── Unsupported types ───────────────────────────────
