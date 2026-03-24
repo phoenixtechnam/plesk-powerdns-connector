@@ -208,6 +208,7 @@ class Modules_Powerdns_ZoneFormatter
             case 'TXT':
                 return $this->formatTxtContent($value);
 
+            case 'ALIAS':
             case 'CNAME':
             case 'NS':
             case 'PTR':

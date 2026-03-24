@@ -358,27 +358,51 @@ XML;
         }
 
         $records = [];
+        $soaData = null;
+
         foreach ($response->dns->get_rec->result as $result) {
             if ((string) $result->status !== 'ok') {
                 continue;
             }
 
             $data = $result->data;
+            $type = strtoupper((string) $data->type);
+
+            // Capture SOA record separately for the zone data structure
+            if ($type === 'SOA') {
+                $soaData = [
+                    'email'   => (string) ($data->{'soa-email'} ?? ''),
+                    'serial'  => (string) ($data->{'serial-number'} ?? ''),
+                    'refresh' => (int) ($data->refresh ?? 10800),
+                    'retry'   => (int) ($data->retry ?? 3600),
+                    'expire'  => (int) ($data->expire ?? 604800),
+                    'minimum' => (int) ($data->minimum ?? 3600),
+                    'ttl'     => (int) ($data->ttl ?? 86400),
+                ];
+                continue;
+            }
+
             $records[] = [
                 'host'  => (string) $data->host,
                 'type'  => (string) $data->type,
                 'value' => (string) $data->value,
-                'ttl'   => isset($data->opt) ? (int) $data->opt : 3600,
+                'ttl'   => isset($data->ttl) ? (int) $data->ttl : 3600,
             ];
         }
 
-        if (empty($records)) {
+        if (empty($records) && $soaData === null) {
             return null;
         }
 
-        return [
+        $zoneData = [
             'name' => $domainName,
             'rr'   => $records,
         ];
+
+        if ($soaData !== null) {
+            $zoneData['soa'] = $soaData;
+        }
+
+        return $zoneData;
     }
 }

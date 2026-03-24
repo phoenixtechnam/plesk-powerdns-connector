@@ -131,13 +131,21 @@ class Modules_Powerdns_Client
         $payload = [
             'name'        => Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneName),
             'kind'        => $kind,
-            'dnssec'      => $dnssec,
             'nameservers' => array_map([Modules_Powerdns_DnsUtils::class, 'ensureTrailingDot'], $nameservers),
             'rrsets'      => $filteredRrsets,
         ];
 
-        $this->logger->info("Creating zone: {$zoneName} (kind={$kind}" . ($dnssec ? ', DNSSEC' : '') . ')');
-        return $this->request('POST', "servers/{$this->serverId}/zones", $payload);
+        $this->logger->info("Creating zone: {$zoneName} (kind={$kind})");
+        $result = $this->request('POST', "servers/{$this->serverId}/zones", $payload);
+
+        // DNSSEC is enabled via a separate cryptokey POST, not a zone-level flag.
+        // PDNS 4.9 accepted 'dnssec' in the zone POST but PDNS 5.0 removed it.
+        // Using the cryptokey approach works on both versions.
+        if ($dnssec) {
+            $this->enableDnssec($zoneName);
+        }
+
+        return $result;
     }
 
     /**

@@ -108,7 +108,40 @@ class Modules_Powerdns_CommandHandler
             $this->logger->info("Zone {$zoneName} does not exist on PowerDNS — creating");
             $this->client->createZone($zoneName, $this->nameservers, $rrsets, $this->dnssec, $this->zoneKind);
         } else {
-            $this->client->updateZone($zoneName, $rrsets);
+            // Build a set of (name, type) pairs from the Plesk rrsets
+            $pleskKeys = [];
+            foreach ($rrsets as $rr) {
+                $pleskKeys[($rr['name'] ?? '') . '|' . ($rr['type'] ?? '')] = true;
+            }
+
+            // Send DELETE for records in PDNS that are absent from Plesk,
+            // excluding SOA and NS at zone apex (managed by PDNS itself)
+            $deleteRrsets = [];
+            foreach ($existing['rrsets'] ?? [] as $pdnsRr) {
+                $name = $pdnsRr['name'] ?? '';
+                $type = $pdnsRr['type'] ?? '';
+                $key = "{$name}|{$type}";
+
+                // Never delete SOA or apex NS — PDNS manages these
+                if ($type === 'SOA' || ($type === 'NS' && $name === $zoneName)) {
+                    continue;
+                }
+
+                if (!isset($pleskKeys[$key])) {
+                    $deleteRrsets[] = [
+                        'name' => $name,
+                        'type' => $type,
+                        'changetype' => 'DELETE',
+                        'records' => [],
+                    ];
+                }
+            }
+
+            $allRrsets = array_merge($rrsets, $deleteRrsets);
+            if (!empty($deleteRrsets)) {
+                $this->logger->info('Deleting ' . count($deleteRrsets) . " stale rrset(s) from {$zoneName}");
+            }
+            $this->client->updateZone($zoneName, $allRrsets);
         }
 
         $this->logger->info("Zone {$zoneName} synced successfully");
