@@ -32,14 +32,20 @@ $conflictingExtensions = [
 
 foreach ($conflictingExtensions as $extId => $extName) {
     try {
-        // pm_ApiCli returns info about the extension; if it's installed
-        // and enabled, we should not proceed.
+        // pm_ApiCli --info returns extension details including status.
+        // We only block if the extension is both installed AND enabled.
+        // A disabled extension has already unregistered its DNS backend,
+        // so it's safe to install alongside.
         $output = pm_ApiCli::callSilent('extension', ['--info', $extId]);
-        // If the call succeeds, the extension is installed
-        if (stripos($output, 'not installed') === false) {
-            echo "ERROR: Cannot install PowerDNS connector — the '{$extName}' extension ({$extId}) is currently installed.\n";
+
+        $isInstalled = stripos($output, 'not installed') === false;
+        $isEnabled = stripos($output, 'active') !== false
+            || stripos($output, 'enabled') !== false;
+
+        if ($isInstalled && $isEnabled) {
+            echo "ERROR: Cannot install PowerDNS connector — the '{$extName}' extension ({$extId}) is currently active.\n";
             echo "Plesk only supports one custom DNS backend at a time.\n";
-            echo "Please uninstall '{$extName}' first, then retry.\n";
+            echo "Please disable or uninstall '{$extName}' first, then retry.\n";
             exit(1);
         }
     } catch (\Exception $e) {
