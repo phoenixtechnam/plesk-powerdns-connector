@@ -9,18 +9,46 @@ declare(strict_types=1);
  *
  * Registers the custom DNS backend with Plesk so that all zone
  * changes are forwarded to our powerdns.php script.
+ *
+ * Safety check: refuses to install if another DNS backend extension
+ * is active, to prevent silently overriding it.
  */
 
 pm_Loader::registerAutoload();
 pm_Context::init('powerdns');
 
+// ── Conflict detection ──────────────────────────────────
+// Plesk only supports one custom DNS backend at a time. Installing
+// ours would silently override any existing backend (e.g., Slave DNS
+// Manager, Route53, DigitalOcean DNS). Check and refuse if found.
+
+$conflictingExtensions = [
+    'slave-dns-manager'  => 'Slave DNS Manager',
+    'route53'            => 'Amazon Route 53',
+    'digitalocean-dns'   => 'DigitalOcean DNS',
+    'cloudflare-dns'     => 'CloudFlare DNS',
+    'vultr-dns'          => 'Vultr DNS',
+];
+
+foreach ($conflictingExtensions as $extId => $extName) {
+    try {
+        // pm_ApiCli returns info about the extension; if it's installed
+        // and enabled, we should not proceed.
+        $output = pm_ApiCli::callSilent('extension', ['--info', $extId]);
+        // If the call succeeds, the extension is installed
+        if (stripos($output, 'not installed') === false) {
+            echo "ERROR: Cannot install PowerDNS connector — the '{$extName}' extension ({$extId}) is currently installed.\n";
+            echo "Plesk only supports one custom DNS backend at a time.\n";
+            echo "Please uninstall '{$extName}' first, then retry.\n";
+            exit(1);
+        }
+    } catch (\Exception $e) {
+        // Extension not installed or API call failed — safe to continue
+    }
+}
+
+// ── Register the custom DNS backend ─────────────────────
 try {
-    // Register the custom DNS backend.
-    // Plesk will invoke this command for every zone create/update/delete.
-    // The --enable-custom-backend flag expects a single command string
-    // that Plesk will execute for each zone operation.
-    // Plesk's server_dns utility treats the next argument as the full
-    // command to invoke, so it must be a single string.
     pm_ApiCli::call('server_dns', [
         '--enable-custom-backend',
         '/usr/local/psa/bin/extension --exec powerdns powerdns.php',
@@ -32,14 +60,14 @@ try {
     exit(1);
 }
 
-// Initialize default settings if not already set
+// ── Initialize default settings ─────────────────────────
 $defaults = [
-    'enabled'  => '',
-    'apiUrl'   => '',
-    'apiKey'   => '',
-    'serverId' => 'localhost',
-    'ns1'      => '',
-    'ns2'      => '',
+    'enabled'    => '',
+    'apiUrl'     => '',
+    'apiKey'     => '',
+    'serverId'   => 'localhost',
+    'ns1'        => '',
+    'ns2'        => '',
     'zoneKind'   => 'Native',
     'ipv6Prefix' => '48',
     'dnssec'     => '',

@@ -68,6 +68,15 @@ class pm_ApiCli
     public static function call(string $command, array $args = []): void
     {
     }
+
+    /**
+     * @param string $command
+     * @param string[] $args
+     * @return string
+     */
+    public static function callSilent(string $command, array $args = []): string
+    {
+    }
 }
 
 class pm_ApiRpc
