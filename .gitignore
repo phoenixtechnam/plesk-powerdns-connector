@@ -1,0 +1,8 @@
+/vendor/
+/src/plib/vendor/
+/composer.lock
+/.phpunit.cache/
+*.phar
+.idea/
+.vscode/
+.claude/

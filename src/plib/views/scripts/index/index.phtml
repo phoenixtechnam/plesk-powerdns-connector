@@ -1,0 +1,34 @@
+<?php
+/** @var Zend_View $this */
+/** @var Modules_Powerdns_Form_Settings $form */
+/** @var bool $enabled */
+?>
+
+<?php if (!$this->enabled): ?>
+    <div class="msg-box msg-warning">
+        <div class="msg-content">
+            PowerDNS integration is currently <strong>disabled</strong>.
+            Configure your PowerDNS API connection below and enable it to start syncing DNS zones.
+        </div>
+    </div>
+<?php endif; ?>
+
+<?php
+$tabs = [
+    [
+        'title'      => 'Settings',
+        'action'     => 'index',
+        'selected'   => true,
+    ],
+    [
+        'title'      => 'Tools',
+        'action'     => 'tools',
+    ],
+];
+
+echo $this->renderTabs($tabs);
+?>
+
+<div id="settings-tab">
+    <?php echo $this->form; ?>
+</div>

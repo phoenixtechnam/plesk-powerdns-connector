@@ -1,0 +1,60 @@
+<?php
+/** @var Zend_View $this */
+/** @var array $errors */
+?>
+
+<?php
+$tabs = [
+    [
+        'title'      => 'Settings',
+        'action'     => 'index',
+    ],
+    [
+        'title'      => 'Tools',
+        'action'     => 'tools',
+        'selected'   => true,
+    ],
+];
+
+echo $this->renderTabs($tabs);
+?>
+
+<h3>Bulk Sync</h3>
+<p>Push all Plesk DNS zones to PowerDNS. Use this for initial migration or to recover from sync issues.</p>
+
+<form method="post" action="<?php echo $this->url(['action' => 'sync-all']); ?>">
+    <?php echo $this->formHidden('token', pm_Session::getToken()); ?>
+    <button type="submit" class="btn" onclick="return confirm('Sync all domains to PowerDNS? This will overwrite existing zones on the PowerDNS server.');">
+        Sync All Domains
+    </button>
+</form>
+
+<hr />
+
+<h3>Recent Errors</h3>
+
+<?php if (empty($this->errors)): ?>
+    <p>No errors recorded.</p>
+<?php else: ?>
+    <table class="list">
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Message</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($this->errors as $error): ?>
+                <tr>
+                    <td><?php echo $this->escape(date('Y-m-d H:i:s', $error['timestamp'])); ?></td>
+                    <td><?php echo $this->escape($error['message']); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+
+    <form method="post" action="<?php echo $this->url(['action' => 'clear-errors']); ?>">
+        <?php echo $this->formHidden('token', pm_Session::getToken()); ?>
+        <button type="submit" class="btn">Clear Error Log</button>
+    </form>
+<?php endif; ?>
