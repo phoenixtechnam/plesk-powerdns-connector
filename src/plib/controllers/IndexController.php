@@ -143,13 +143,130 @@ class IndexController extends pm_Controller_Action
             }
         }
 
+        // Send webhook notification (skips internally if URL is empty)
+        $notifier = new Modules_Powerdns_NotificationService(
+            pm_Settings::get('webhookUrl', '') ?? '',
+            $logger
+        );
+        $notifier->notifyBulkSyncComplete($synced, $failed, $errors);
+
         if ($failed > 0) {
+            $displayErrors = array_slice($errors, 0, 10);
+            $summary = implode(', ', $displayErrors);
+            if ($failed > 10) {
+                $summary .= ' and ' . ($failed - 10) . ' more';
+            }
             $this->_status->addError(
-                "Synced {$synced} zone(s), {$failed} failed: " . implode(', ', $errors)
-                . '. Check the error log for details.'
+                "Synced {$synced} zone(s), {$failed} failed: {$summary}. Check the error log for details."
             );
         } else {
             $this->_status->addInfo("Successfully synced {$synced} zone(s) to PowerDNS.");
+        }
+
+        $this->_redirect('/index/tools');
+    }
+
+    /**
+     * Test the connection to PowerDNS and return server info.
+     */
+    public function healthCheckAction(): void
+    {
+        if (!$this->getRequest()->isPost()) {
+            $this->_redirect('/index/tools');
+            return;
+        }
+
+        if (!hash_equals((string) pm_Session::getToken(), (string) $this->getRequest()->getPost('token'))) {
+            throw new pm_Exception('Invalid request token');
+        }
+
+        $apiUrl   = pm_Settings::get('apiUrl');
+        $apiKey   = pm_Settings::get('apiKey');
+        $serverId = pm_Settings::get('serverId', 'localhost') ?? 'localhost';
+
+        if (empty($apiUrl) || empty($apiKey)) {
+            $this->_status->addError('PowerDNS API credentials not configured.');
+            $this->_redirect('/index/tools');
+            return;
+        }
+
+        try {
+            $client = new Modules_Powerdns_Client($apiUrl, $apiKey, $serverId);
+            $serverInfo = $client->testConnection();
+            $version = $serverInfo['version'] ?? 'unknown';
+            $zones = $client->listZones();
+            $zoneCount = count($zones);
+
+            $this->_status->addInfo(
+                "Connected to PowerDNS {$version} (server: {$serverId}, zones: {$zoneCount})."
+            );
+        } catch (Modules_Powerdns_Exception $e) {
+            $this->_status->addError('Health check failed: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            $logger = new Modules_Powerdns_Logger();
+            $logger->err('Health check connection error: ' . $e->getMessage());
+            $this->_status->addError('Connection error: unable to reach the PowerDNS server.');
+        }
+
+        $this->_redirect('/index/tools');
+    }
+
+    /**
+     * Preview what bulk sync would change (dry run).
+     */
+    public function syncPreviewAction(): void
+    {
+        if (!$this->getRequest()->isPost()) {
+            $this->_redirect('/index/tools');
+            return;
+        }
+
+        if (!hash_equals((string) pm_Session::getToken(), (string) $this->getRequest()->getPost('token'))) {
+            throw new pm_Exception('Invalid request token');
+        }
+
+        $apiUrl   = pm_Settings::get('apiUrl');
+        $apiKey   = pm_Settings::get('apiKey');
+        $serverId = pm_Settings::get('serverId', 'localhost') ?? 'localhost';
+
+        if (empty($apiUrl) || empty($apiKey)) {
+            $this->_status->addError('PowerDNS API credentials not configured.');
+            $this->_redirect('/index/tools');
+            return;
+        }
+
+        try {
+            $client = new Modules_Powerdns_Client($apiUrl, $apiKey, $serverId);
+            $domains = $this->getAllDomains();
+            $pdnsZones = $client->listZones();
+
+            // Build a set of zone names on PowerDNS
+            $pdnsZoneNames = [];
+            foreach ($pdnsZones as $zone) {
+                $pdnsZoneNames[$zone['name'] ?? ''] = true;
+            }
+
+            $toCreate = 0;
+            $toUpdate = 0;
+
+            foreach ($domains as $domainName) {
+                $zoneName = rtrim($domainName, '.') . '.';
+                if (isset($pdnsZoneNames[$zoneName])) {
+                    $toUpdate++;
+                } else {
+                    $toCreate++;
+                }
+            }
+
+            $total = count($domains);
+            $this->_status->addInfo(
+                "Sync preview: {$total} domain(s) found. "
+                . "{$toCreate} to create, {$toUpdate} to update."
+            );
+        } catch (\Exception $e) {
+            $logger = new Modules_Powerdns_Logger();
+            $logger->err('Sync preview error: ' . $e->getMessage());
+            $this->_status->addError('Preview failed: unable to complete the preview.');
         }
 
         $this->_redirect('/index/tools');

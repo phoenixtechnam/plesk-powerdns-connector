@@ -105,6 +105,16 @@ class Modules_Powerdns_Form_Settings extends pm_Form_Simple
             'value'       => pm_Settings::get('dnssec') ? '1' : '',
         ]);
 
+        $this->addElement('text', 'webhookUrl', [
+            'label'       => 'Notification Webhook URL',
+            'description' => 'Optional: HTTPS URL to POST JSON notifications on sync failures. Leave blank to disable.',
+            'required'    => false,
+            'value'       => pm_Settings::get('webhookUrl', ''),
+            'filters'     => [
+                'StringTrim',
+            ],
+        ]);
+
         $this->addElement('checkbox', 'enabled', [
             'label'       => 'Enable PowerDNS integration',
             'description' => 'When enabled, all DNS zone changes in Plesk are synced to PowerDNS',
@@ -120,6 +130,15 @@ class Modules_Powerdns_Form_Settings extends pm_Form_Simple
     public function isValid($data): bool
     {
         if (!parent::isValid($data)) {
+            return false;
+        }
+
+        // Validate webhook URL: must be HTTPS or empty (SSRF prevention)
+        $webhookUrl = trim($data['webhookUrl'] ?? '');
+        if ($webhookUrl !== '' && !str_starts_with($webhookUrl, 'https://')) {
+            $this->getElement('webhookUrl')->addError(
+                'Webhook URL must use HTTPS for security.'
+            );
             return false;
         }
 
@@ -177,6 +196,7 @@ class Modules_Powerdns_Form_Settings extends pm_Form_Simple
         pm_Settings::set('ns2', $values['ns2'] ?? '');
         pm_Settings::set('zoneKind', $values['zoneKind'] ?? 'Native');
         pm_Settings::set('ipv6Prefix', $values['ipv6Prefix'] ?? '48');
+        pm_Settings::set('webhookUrl', $values['webhookUrl'] ?? '');
         pm_Settings::set('dnssec', !empty($values['dnssec']) ? '1' : '');
         pm_Settings::set('enabled', !empty($values['enabled']) ? '1' : '');
     }

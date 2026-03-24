@@ -73,15 +73,20 @@ try {
 }
 
 // ── Dispatch command ────────────────────────────────────────
+$notifier = new Modules_Powerdns_NotificationService(
+    pm_Settings::get('webhookUrl', '') ?? '',
+    $logger
+);
+
 try {
     $handler->dispatch($input);
-} catch (Modules_Powerdns_Exception $e) {
-    $command = $input['command'] ?? 'unknown';
-    $logger->err("PowerDNS API error for command '{$command}': " . $e->getMessage());
-    exit(255);
 } catch (\Exception $e) {
     $command = $input['command'] ?? 'unknown';
-    $logger->err("Unexpected error for command '{$command}': " . $e->getMessage());
+    $zoneName = $input['zone']['name'] ?? $input['ptr']['ip_address'] ?? 'unknown';
+    $isApiError = $e instanceof Modules_Powerdns_Exception;
+    $prefix = $isApiError ? 'PowerDNS API error' : 'Unexpected error';
+    $logger->err("{$prefix} for command '{$command}': " . $e->getMessage());
+    $notifier->notifySyncFailure($zoneName, $e->getMessage(), $command);
     exit(255);
 }
 

@@ -53,3 +53,93 @@ require_once __DIR__ . '/../src/plib/library/ReverseDns.php';
 require_once __DIR__ . '/../src/plib/library/ZoneFormatter.php';
 require_once __DIR__ . '/../src/plib/library/Client.php';
 require_once __DIR__ . '/../src/plib/library/CommandHandler.php';
+require_once __DIR__ . '/../src/plib/library/NotificationService.php';
+
+// Plesk form/controller stubs for testing Form/Settings and IndexController
+if (!class_exists('pm_Form_Simple')) {
+    class pm_Form_Simple
+    {
+        /** @var array<string, array<string, mixed>> */
+        protected array $elements = [];
+        /** @var array<string, mixed> */
+        protected array $values = [];
+
+        public function init(): void {}
+
+        /** @param array<string, mixed> $options */
+        public function addElement(string $type, string $name, array $options = []): void
+        {
+            $this->elements[$name] = $options;
+            if (isset($options['value'])) {
+                $this->values[$name] = $options['value'];
+            }
+        }
+
+        /** @param array<string, mixed> $options */
+        public function addControlButtons(array $options = []): void {}
+
+        /** @param array<string, mixed> $data */
+        public function isValid(array $data): bool
+        {
+            $this->values = array_merge($this->values, $data);
+            return true;
+        }
+
+        /** @return array<string, mixed> */
+        public function getValues(): array
+        {
+            return $this->values;
+        }
+
+        public function getElement(string $name): pm_Form_Element
+        {
+            return new pm_Form_Element();
+        }
+    }
+
+    class pm_Form_Element
+    {
+        /** @var string[] */
+        public array $errors = [];
+
+        public function addError(string $message): void
+        {
+            $this->errors[] = $message;
+        }
+    }
+}
+
+if (!class_exists('pm_Context')) {
+    class pm_Context
+    {
+        public static function init(string $name): void {}
+        public static function getModulesListUrl(): string
+        {
+            return '/modules';
+        }
+    }
+}
+
+if (!class_exists('pm_Session')) {
+    class pm_Session
+    {
+        public static function getClient(): pm_Client
+        {
+            return new pm_Client();
+        }
+        public static function getToken(): string
+        {
+            return 'test-csrf-token';
+        }
+    }
+
+    class pm_Client
+    {
+        public function isAdmin(): bool
+        {
+            return true;
+        }
+    }
+}
+
+require_once __DIR__ . '/../src/plib/library/Form/Settings.php';
