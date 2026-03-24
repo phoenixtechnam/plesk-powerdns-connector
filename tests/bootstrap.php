@@ -142,4 +142,188 @@ if (!class_exists('pm_Session')) {
     }
 }
 
+if (!class_exists('pm_ApiRpc')) {
+    class pm_ApiRpc
+    {
+        public static function getService(): pm_ApiRpc_Service
+        {
+            return new pm_ApiRpc_Service();
+        }
+    }
+
+    class pm_ApiRpc_Service
+    {
+        /** @return \SimpleXMLElement */
+        public function call(string $request): \SimpleXMLElement
+        {
+            return new \SimpleXMLElement('<packet/>');
+        }
+    }
+}
+
+if (!class_exists('pm_Controller_Action')) {
+    class pm_Controller_Action
+    {
+        /** @var pm_View_Stub */
+        public $view;
+
+        /** @var pm_Status_Stub */
+        public $_status;
+
+        public function init(): void
+        {
+            $this->view = new pm_View_Stub();
+            $this->_status = new pm_Status_Stub();
+        }
+
+        public function getRequest(): pm_Request_Stub
+        {
+            return new pm_Request_Stub();
+        }
+
+        public function _redirect(string $url): void {}
+    }
+
+    /**
+     * @property string $pageTitle
+     * @property mixed $form
+     * @property mixed $enabled
+     * @property mixed $errors
+     */
+    class pm_View_Stub
+    {
+        /** @var array<string, mixed> */
+        private array $data = [];
+
+        public function __set(string $name, mixed $value): void
+        {
+            $this->data[$name] = $value;
+        }
+
+        public function __get(string $name): mixed
+        {
+            return $this->data[$name] ?? null;
+        }
+
+        public function __isset(string $name): bool
+        {
+            return isset($this->data[$name]);
+        }
+    }
+
+    class pm_Status_Stub
+    {
+        /** @var string[] */
+        public array $infoMessages = [];
+        /** @var string[] */
+        public array $errorMessages = [];
+
+        public function addInfo(string $message): void
+        {
+            $this->infoMessages[] = $message;
+        }
+
+        public function addError(string $message): void
+        {
+            $this->errorMessages[] = $message;
+        }
+    }
+
+    class pm_Request_Stub
+    {
+        private bool $isPost = false;
+        /** @var array<string, mixed> */
+        private array $postData = [];
+
+        public function setIsPost(bool $isPost): void
+        {
+            $this->isPost = $isPost;
+        }
+
+        /** @param array<string, mixed> $data */
+        public function setPostData(array $data): void
+        {
+            $this->postData = $data;
+        }
+
+        public function isPost(): bool
+        {
+            return $this->isPost;
+        }
+
+        /**
+         * @return mixed
+         */
+        public function getPost(?string $key = null): mixed
+        {
+            if ($key !== null) {
+                return $this->postData[$key] ?? null;
+            }
+            return $this->postData;
+        }
+    }
+}
+
 require_once __DIR__ . '/../src/plib/library/Form/Settings.php';
+require_once __DIR__ . '/../src/plib/controllers/IndexController.php';
+
+/**
+ * Testable subclass of IndexController.
+ *
+ * Overrides controller infrastructure to avoid Plesk SDK dependencies.
+ */
+class TestableIndexController extends IndexController
+{
+    private pm_Request_Stub $requestStub;
+    private ?string $redirectUrl = null;
+
+    public function __construct()
+    {
+        $this->requestStub = new pm_Request_Stub();
+    }
+
+    public function init(): void
+    {
+        $this->view = new pm_View_Stub();
+        $this->_status = new pm_Status_Stub();
+        $this->view->pageTitle = 'PowerDNS';
+    }
+
+    public function getRequest(): pm_Request_Stub
+    {
+        return $this->requestStub;
+    }
+
+    public function _redirect(string $url): void
+    {
+        $this->redirectUrl = $url;
+    }
+
+    public function setIsPost(bool $isPost): void
+    {
+        $this->requestStub->setIsPost($isPost);
+    }
+
+    /** @param array<string, mixed> $data */
+    public function setPostData(array $data): void
+    {
+        $this->requestStub->setPostData($data);
+    }
+
+    public function getRedirectUrl(): ?string
+    {
+        return $this->redirectUrl;
+    }
+
+    /** @return string[] */
+    public function getInfoMessages(): array
+    {
+        return $this->_status->infoMessages;
+    }
+
+    /** @return string[] */
+    public function getErrorMessages(): array
+    {
+        return $this->_status->errorMessages;
+    }
+}
