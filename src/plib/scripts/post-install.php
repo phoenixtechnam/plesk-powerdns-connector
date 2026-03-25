@@ -36,7 +36,7 @@ foreach ($conflictingExtensions as $extId => $extName) {
         // We only block if the extension is both installed AND enabled.
         // A disabled extension has already unregistered its DNS backend,
         // so it's safe to install alongside.
-        $output = pm_ApiCli::callSilent('extension', ['--info', $extId]);
+        $output = pm_ApiCli::call('extension', ['--info', $extId]);
 
         $isInstalled = stripos($output, 'not installed') === false;
         $isEnabled = stripos($output, 'active') !== false
