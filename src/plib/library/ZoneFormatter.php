@@ -106,7 +106,7 @@ class Modules_Powerdns_ZoneFormatter
         $ttl = 3600; // default
 
         foreach ($records as $rr) {
-            $content = $this->formatContent($type, $rr['value'] ?? '');
+            $content = $this->formatContent($type, $rr['value'] ?? '', $rr);
             $ttl = (int) ($rr['ttl'] ?? $ttl);
 
             $pdnsRecords[] = [
@@ -202,7 +202,10 @@ class Modules_Powerdns_ZoneFormatter
      * - MX/SRV: priority is part of the content string (Plesk already includes it)
      * - CNAME/NS/PTR/MX target: ensure trailing dot
      */
-    private function formatContent(string $type, string $value): string
+    /**
+     * @param array<string, mixed> $rr Full Plesk record (has 'value', 'opt', etc.)
+     */
+    private function formatContent(string $type, string $value, array $rr = []): string
     {
         switch ($type) {
             case 'TXT':
@@ -215,12 +218,10 @@ class Modules_Powerdns_ZoneFormatter
                 return Modules_Powerdns_DnsUtils::ensureTrailingDot($value);
 
             case 'MX':
-                // Plesk format: "10 mail.example.com."
-                return $this->formatMxContent($value);
+                return $this->formatMxContent($value, $rr);
 
             case 'SRV':
-                // Plesk format: "10 5 5060 sip.example.com."
-                return $this->formatSrvContent($value);
+                return $this->formatSrvContent($value, $rr);
 
             case 'CAA':
                 // Plesk format: '0 issue "letsencrypt.org"'
@@ -249,27 +250,64 @@ class Modules_Powerdns_ZoneFormatter
 
     /**
      * Format MX record: ensure target hostname has trailing dot.
+     *
+     * Plesk may send MX data in two formats:
+     *   1. Combined: value = "10 mail.example.com"
+     *   2. Split:    value = "mail.example.com", opt = "10"
+     *
+     * @param array<string, mixed> $rr Full Plesk record
      */
-    private function formatMxContent(string $value): string
+    private function formatMxContent(string $value, array $rr = []): string
     {
+        // Try combined format first: "priority target"
         $parts = preg_split('/\s+/', trim($value), 2) ?: [];
-        if (count($parts) === 2) {
+        if (count($parts) === 2 && is_numeric($parts[0])) {
             return $parts[0] . ' ' . Modules_Powerdns_DnsUtils::ensureTrailingDot($parts[1]);
         }
-        return $value;
+
+        // Split format: priority in 'opt', target in 'value'
+        $priority = $rr['opt'] ?? '10';
+        return $priority . ' ' . Modules_Powerdns_DnsUtils::ensureTrailingDot($value);
     }
 
     /**
      * Format SRV record: ensure target hostname has trailing dot.
-     * Format: priority weight port target
+     *
+     * Plesk may send SRV data in two formats:
+     *   1. Combined: value = "10 5 5060 sip.example.com"
+     *   2. Split:    value = "sip.example.com", opt = "10 5 5060"
+     *              or value = "sip.example.com" with no priority/weight/port
+     *
+     * PowerDNS expects: "priority weight port target"
+     *
+     * @param array<string, mixed> $rr Full Plesk record
      */
-    private function formatSrvContent(string $value): string
+    private function formatSrvContent(string $value, array $rr = []): string
     {
+        // Try combined format: "priority weight port target"
         $parts = preg_split('/\s+/', trim($value), 4) ?: [];
-        if (count($parts) === 4) {
+        if (count($parts) === 4 && is_numeric($parts[0])) {
             $parts[3] = Modules_Powerdns_DnsUtils::ensureTrailingDot($parts[3]);
             return implode(' ', $parts);
         }
-        return $value;
+
+        // Split format: priority/weight/port in 'opt', target in 'value'
+        $opt = trim((string) ($rr['opt'] ?? ''));
+        $target = Modules_Powerdns_DnsUtils::ensureTrailingDot($value);
+
+        if ($opt !== '') {
+            // opt may contain "priority weight port" or just "priority"
+            $optParts = preg_split('/\s+/', $opt) ?: [];
+            if (count($optParts) === 3) {
+                return "{$optParts[0]} {$optParts[1]} {$optParts[2]} {$target}";
+            }
+            if (count($optParts) === 1) {
+                // Only priority — default weight=0, port=0
+                return "{$optParts[0]} 0 0 {$target}";
+            }
+        }
+
+        // Fallback: default priority/weight/port
+        return "0 0 0 {$target}";
     }
 }
