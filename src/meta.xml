@@ -3,10 +3,10 @@
     <id>powerdns</id>
     <name>PowerDNS</name>
     <description>Manage DNS zones on external PowerDNS servers via the PowerDNS API</description>
-    <version>1.0.0</version>
+    <version>0.1.0</version>
     <release>1</release>
     <vendor>Custom</vendor>
-    <url>https://github.com/plesk/powerdns-connector</url>
+    <url>https://github.com/phoenixtechnam/plesk-powerdns-connector</url>
 
     <plesk_min_version>18.0.40</plesk_min_version>
     <php_min_version>8.0</php_min_version>
