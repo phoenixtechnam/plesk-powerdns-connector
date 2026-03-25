@@ -7,6 +7,21 @@
  * not available outside the Plesk environment.
  */
 
+interface EventListener
+{
+    /** @return string[] */
+    public function filterActions();
+
+    /**
+     * @param string $objectType
+     * @param int $objectId
+     * @param string $action
+     * @param array $oldValues
+     * @param array $newValues
+     */
+    public function handleEvent($objectType, $objectId, $action, $oldValues, $newValues): void;
+}
+
 class pm_Exception extends \RuntimeException
 {
 }
