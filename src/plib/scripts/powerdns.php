@@ -8,8 +8,8 @@
  * Custom DNS Backend Script for Plesk.
  *
  * Plesk invokes this script via stdin with a JSON payload whenever
- * a DNS zone is created, updated, or deleted.  The script translates
- * the zone data and pushes it to the PowerDNS API.
+ * a DNS zone is created, updated, or deleted.  The payload may be
+ * a single command object or an array of command objects.
  *
  * Exit codes:
  *   0   — success
@@ -29,22 +29,28 @@ if (!$enabled) {
     exit(0);
 }
 
-// ── Read JSON command from stdin ────────────────────────────
+// ── Read JSON from stdin ────────────────────────────────────
 $stdin = file_get_contents('php://stdin');
 if (empty($stdin)) {
     $logger->err('Empty input received from Plesk');
     exit(255);
 }
 
-$input = json_decode($stdin, true);
-if ($input === null) {
+$data = json_decode($stdin, true);
+if ($data === null) {
     $logger->err('Invalid JSON input: ' . json_last_error_msg());
     exit(255);
 }
 
-// Skip payloads without a command (e.g., domains with DNS disabled)
-$command = $input['command'] ?? null;
-if ($command === null) {
+// ── Normalise input ─────────────────────────────────────────
+// Plesk may send a single command object {"command":...} or an
+// array of command objects [{"command":...}, {"command":...}].
+// Normalise to always process an array.
+if (isset($data['command'])) {
+    $commands = [$data];
+} elseif (is_array($data) && isset($data[0])) {
+    $commands = $data;
+} else {
     $logger->info('No command in payload — skipping (DNS may be disabled for this domain)');
     exit(0);
 }
@@ -79,22 +85,30 @@ try {
     exit(255);
 }
 
-// ── Dispatch command ────────────────────────────────────────
+// ── Dispatch each command ───────────────────────────────────
 $notifier = new Modules_Powerdns_NotificationService(
     pm_Settings::get('webhookUrl', '') ?? '',
     $logger
 );
 
-try {
-    $handler->dispatch($input);
-} catch (\Exception $e) {
-    $command = $input['command'] ?? 'unknown';
-    $zoneName = $input['zone']['name'] ?? $input['ptr']['ip_address'] ?? 'unknown';
-    $isApiError = $e instanceof Modules_Powerdns_Exception;
-    $prefix = $isApiError ? 'PowerDNS API error' : 'Unexpected error';
-    $logger->err("{$prefix} for command '{$command}': " . $e->getMessage());
-    $notifier->notifySyncFailure($zoneName, $e->getMessage(), $command);
-    exit(255);
+$hasError = false;
+
+foreach ($commands as $input) {
+    $command = $input['command'] ?? null;
+    if ($command === null) {
+        continue;
+    }
+
+    try {
+        $handler->dispatch($input);
+    } catch (\Exception $e) {
+        $hasError = true;
+        $zoneName = $input['zone']['name'] ?? $input['ptr']['ip_address'] ?? 'unknown';
+        $isApiError = $e instanceof Modules_Powerdns_Exception;
+        $prefix = $isApiError ? 'PowerDNS API error' : 'Unexpected error';
+        $logger->err("{$prefix} for command '{$command}': " . $e->getMessage());
+        $notifier->notifySyncFailure($zoneName, $e->getMessage(), $command);
+    }
 }
 
-exit(0);
+exit($hasError ? 255 : 0);

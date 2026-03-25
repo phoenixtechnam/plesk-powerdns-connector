@@ -30,6 +30,10 @@ class pm_Loader
     }
 }
 
+if (!defined('PRODUCT_ROOT')) {
+    define('PRODUCT_ROOT', '/usr/local/psa');
+}
+
 class pm_Context
 {
     public static function init(string $name): void
@@ -37,6 +41,10 @@ class pm_Context
     }
 
     public static function getModulesListUrl(): string
+    {
+    }
+
+    public static function getModuleId(): string
     {
     }
 }

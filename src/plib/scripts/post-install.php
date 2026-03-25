@@ -52,11 +52,18 @@ foreach ($conflictingExtensions as $extId => $extName) {
 }
 
 // ── Register the custom DNS backend ─────────────────────
+// Use PRODUCT_ROOT to resolve the Plesk binary path dynamically
+// (not always /usr/local/psa). Quotes around the path are required
+// for Plesk's server_dns parser — matches the pattern used by
+// official Plesk DNS extensions (Route53, Slave DNS Manager).
 try {
-    pm_ApiCli::call('server_dns', [
-        '--enable-custom-backend',
-        '/usr/local/psa/bin/extension --exec powerdns powerdns.php',
-    ]);
+    if (substr(PHP_OS, 0, 3) === 'WIN') {
+        $cmd = '"' . PRODUCT_ROOT . '\bin\extension.exe"';
+    } else {
+        $cmd = '"' . PRODUCT_ROOT . '/bin/extension"';
+    }
+    $script = $cmd . ' --exec ' . pm_Context::getModuleId() . ' powerdns.php';
+    pm_ApiCli::call('server_dns', ['--enable-custom-backend', $script]);
 
     echo "PowerDNS custom DNS backend registered successfully.\n";
 } catch (pm_Exception $e) {
