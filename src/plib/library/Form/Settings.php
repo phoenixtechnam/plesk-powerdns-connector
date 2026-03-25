@@ -77,9 +77,6 @@ class Modules_Powerdns_Form_Settings extends pm_Form_Simple
                 'Native'  => 'Native (shared database, no NOTIFY)',
                 'Primary' => 'Primary (NOTIFY + AXFR to secondaries)',
             ],
-            'validators' => [
-                ['InArray', true, ['haystack' => ['Native', 'Primary']]],
-            ],
         ]);
 
         $this->addElement('select', 'ipv6Prefix', [
@@ -92,9 +89,6 @@ class Modules_Powerdns_Form_Settings extends pm_Form_Simple
                 '48' => '/48 (12 nibbles — default ISP delegation)',
                 '56' => '/56 (14 nibbles)',
                 '64' => '/64 (16 nibbles — single subnet)',
-            ],
-            'validators' => [
-                ['InArray', true, ['haystack' => ['32', '48', '56', '64']]],
             ],
         ]);
 

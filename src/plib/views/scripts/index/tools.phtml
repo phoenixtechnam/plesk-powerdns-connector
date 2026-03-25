@@ -23,7 +23,6 @@ echo $this->renderTabs($tabs);
 <p>Test the connection to your PowerDNS server and display server version and zone count.</p>
 
 <form method="post" action="<?php echo $this->url(['action' => 'health-check']); ?>" style="display: inline-block;">
-    <?php echo $this->formHidden('token', pm_Session::getToken()); ?>
     <button type="submit" class="btn">Test Connection</button>
 </form>
 
@@ -33,12 +32,10 @@ echo $this->renderTabs($tabs);
 <p>Push all Plesk DNS zones to PowerDNS. Use this for initial migration or to recover from sync issues.</p>
 
 <form method="post" action="<?php echo $this->url(['action' => 'sync-preview']); ?>" style="display: inline-block; margin-right: 8px;">
-    <?php echo $this->formHidden('token', pm_Session::getToken()); ?>
     <button type="submit" class="btn">Preview Changes</button>
 </form>
 
 <form method="post" action="<?php echo $this->url(['action' => 'sync-all']); ?>" style="display: inline-block;">
-    <?php echo $this->formHidden('token', pm_Session::getToken()); ?>
     <button type="submit" class="btn" onclick="return confirm('Sync all domains to PowerDNS? This will overwrite existing zones on the PowerDNS server.');">
         Sync All Domains
     </button>
@@ -69,7 +66,6 @@ echo $this->renderTabs($tabs);
     </table>
 
     <form method="post" action="<?php echo $this->url(['action' => 'clear-errors']); ?>">
-        <?php echo $this->formHidden('token', pm_Session::getToken()); ?>
         <button type="submit" class="btn">Clear Error Log</button>
     </form>
 <?php endif; ?>

@@ -70,10 +70,7 @@ class IndexController extends pm_Controller_Action
             return;
         }
 
-        // CSRF protection
-        if (!hash_equals((string) pm_Session::getToken(), (string) $this->getRequest()->getPost('token'))) {
-            throw new pm_Exception('Invalid request token');
-        }
+
 
         $apiUrl   = pm_Settings::get('apiUrl');
         $apiKey   = pm_Settings::get('apiKey');
