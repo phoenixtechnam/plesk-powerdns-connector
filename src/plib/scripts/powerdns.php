@@ -42,6 +42,13 @@ if ($input === null) {
     exit(255);
 }
 
+// Skip payloads without a command (e.g., domains with DNS disabled)
+$command = $input['command'] ?? null;
+if ($command === null) {
+    $logger->info('No command in payload — skipping (DNS may be disabled for this domain)');
+    exit(0);
+}
+
 // ── Build PowerDNS client and command handler ───────────────
 $apiUrl   = pm_Settings::get('apiUrl');
 $apiKey   = pm_Settings::get('apiKey');

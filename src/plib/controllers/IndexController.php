@@ -326,7 +326,7 @@ XML;
     <dns>
         <get_rec>
             <filter>
-                <site-name>{$safeName}</site-name>
+                <dns-zone-name>{$safeName}</dns-zone-name>
             </filter>
         </get_rec>
     </dns>
