@@ -251,7 +251,8 @@ class IndexController extends pm_Controller_Action
 
             $total = count($domains);
             $this->_status->addInfo(
-                "Sync preview: {$total} domain(s) found. "
+                "Sync preview: {$total} eligible domain(s) found "
+                . "(DNS-disabled and secondary domains excluded). "
                 . "{$toCreate} to create, {$toUpdate} to update."
             );
         } catch (\Exception $e) {
@@ -280,7 +281,11 @@ class IndexController extends pm_Controller_Action
     // ──────────────────────────────────────────────
 
     /**
-     * Get all domain names from Plesk.
+     * Get all domain names from Plesk that are eligible for DNS sync.
+     *
+     * Filters out:
+     * - Domains with DNS hosting disabled
+     * - Domains configured as secondary/slave DNS (they receive zones, not push)
      *
      * @return string[]
      */
@@ -294,6 +299,7 @@ class IndexController extends pm_Controller_Action
             <filter/>
             <dataset>
                 <gen_info/>
+                <hosting/>
             </dataset>
         </get>
     </webspace>
@@ -302,12 +308,33 @@ XML;
 
         $response = pm_ApiRpc::getService()->call($request);
 
-        if (isset($response->webspace->get->result)) {
-            foreach ($response->webspace->get->result as $result) {
-                if ((string) $result->status === 'ok' && isset($result->data->gen_info->name)) {
-                    $domains[] = (string) $result->data->gen_info->name;
-                }
+        if (!isset($response->webspace->get->result)) {
+            return $domains;
+        }
+
+        foreach ($response->webspace->get->result as $result) {
+            if ((string) $result->status !== 'ok' || !isset($result->data->gen_info->name)) {
+                continue;
             }
+
+            $domainName = (string) $result->data->gen_info->name;
+
+            // Check DNS hosting type via the gen_info dns_zone_status
+            // or hosting configuration
+            $dnsType = (string) ($result->data->gen_info->{'dns_zone_type'} ?? 'master');
+
+            // Skip domains with DNS disabled (no DNS zone)
+            if ($dnsType === 'none' || $dnsType === 'disabled') {
+                continue;
+            }
+
+            // Skip secondary/slave DNS domains — they receive zones from
+            // a master server, not push to PowerDNS
+            if ($dnsType === 'slave' || $dnsType === 'secondary') {
+                continue;
+            }
+
+            $domains[] = $domainName;
         }
 
         return $domains;
@@ -342,6 +369,7 @@ XML;
         }
 
         if (!isset($response->dns->get_rec->result)) {
+            // No DNS records — DNS may be disabled or zone is empty
             return null;
         }
 
