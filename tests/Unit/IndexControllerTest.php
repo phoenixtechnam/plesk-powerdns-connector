@@ -22,19 +22,6 @@ class IndexControllerTest extends TestCase
         Modules_Powerdns_Logger::clearStoredErrors();
     }
 
-    private function configureSettings(): void
-    {
-        pm_Settings::set('enabled', '1');
-        pm_Settings::set('apiUrl', 'http://pdns:8081');
-        pm_Settings::set('apiKey', 'test-key');
-        pm_Settings::set('serverId', 'localhost');
-        pm_Settings::set('ns1', 'ns1.example.com');
-        pm_Settings::set('ns2', 'ns2.example.com');
-        pm_Settings::set('zoneKind', 'Native');
-        pm_Settings::set('ipv6Prefix', '48');
-        pm_Settings::set('webhookUrl', '');
-    }
-
     // ── init() ──────────────────────────────────────────
 
     public function testInitSetsPageTitle(): void
@@ -105,26 +92,12 @@ class IndexControllerTest extends TestCase
         $this->assertSame('/index/tools', $controller->getRedirectUrl());
     }
 
-    public function testHealthCheckInvalidTokenThrows(): void
-    {
-        $controller = new TestableIndexController();
-        $controller->setIsPost(true);
-        $controller->setPostData(['token' => 'wrong-token']);
-        $controller->init();
-
-        $this->expectException(pm_Exception::class);
-        $this->expectExceptionMessage('Invalid request token');
-        $controller->healthCheckAction();
-    }
-
     public function testHealthCheckNoCredentialsShowsError(): void
     {
         $controller = new TestableIndexController();
         $controller->setIsPost(true);
-        $controller->setPostData(['token' => 'test-csrf-token']);
         $controller->init();
 
-        // No API settings configured
         $controller->healthCheckAction();
 
         $this->assertContains('PowerDNS API credentials not configured.', $controller->getErrorMessages());
@@ -146,7 +119,6 @@ class IndexControllerTest extends TestCase
     {
         $controller = new TestableIndexController();
         $controller->setIsPost(true);
-        $controller->setPostData(['token' => 'test-csrf-token']);
         $controller->init();
 
         $controller->syncPreviewAction();
@@ -166,22 +138,10 @@ class IndexControllerTest extends TestCase
         $this->assertSame('/index', $controller->getRedirectUrl());
     }
 
-    public function testSyncAllInvalidTokenThrows(): void
-    {
-        $controller = new TestableIndexController();
-        $controller->setIsPost(true);
-        $controller->setPostData(['token' => 'bad-token']);
-        $controller->init();
-
-        $this->expectException(pm_Exception::class);
-        $controller->syncAllAction();
-    }
-
     public function testSyncAllNoCredentialsShowsError(): void
     {
         $controller = new TestableIndexController();
         $controller->setIsPost(true);
-        $controller->setPostData(['token' => 'test-csrf-token']);
         $controller->init();
 
         $controller->syncAllAction();
@@ -197,7 +157,6 @@ class IndexControllerTest extends TestCase
 
         $controller = new TestableIndexController();
         $controller->setIsPost(true);
-        $controller->setPostData(['token' => 'test-csrf-token']);
         $controller->init();
         $controller->syncAllAction();
 
@@ -214,7 +173,6 @@ class IndexControllerTest extends TestCase
 
         $controller = new TestableIndexController();
         $controller->setIsPost(true);
-        $controller->setPostData(['token' => 'test-csrf-token']);
         $controller->init();
         $controller->clearErrorsAction();
 
@@ -235,16 +193,5 @@ class IndexControllerTest extends TestCase
         // Errors should NOT be cleared
         $this->assertNotEmpty(Modules_Powerdns_Logger::getStoredErrors());
         $this->assertSame('/index/tools', $controller->getRedirectUrl());
-    }
-
-    public function testClearErrorsInvalidTokenThrows(): void
-    {
-        $controller = new TestableIndexController();
-        $controller->setIsPost(true);
-        $controller->setPostData(['token' => 'wrong']);
-        $controller->init();
-
-        $this->expectException(pm_Exception::class);
-        $controller->clearErrorsAction();
     }
 }

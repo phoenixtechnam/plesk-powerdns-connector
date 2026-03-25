@@ -172,9 +172,6 @@ class IndexController extends pm_Controller_Action
             return;
         }
 
-        if (!hash_equals((string) pm_Session::getToken(), (string) $this->getRequest()->getPost('token'))) {
-            throw new pm_Exception('Invalid request token');
-        }
 
         $apiUrl   = pm_Settings::get('apiUrl');
         $apiKey   = pm_Settings::get('apiKey');
@@ -217,9 +214,6 @@ class IndexController extends pm_Controller_Action
             return;
         }
 
-        if (!hash_equals((string) pm_Session::getToken(), (string) $this->getRequest()->getPost('token'))) {
-            throw new pm_Exception('Invalid request token');
-        }
 
         $apiUrl   = pm_Settings::get('apiUrl');
         $apiKey   = pm_Settings::get('apiKey');
@@ -274,9 +268,6 @@ class IndexController extends pm_Controller_Action
     public function clearErrorsAction(): void
     {
         if ($this->getRequest()->isPost()) {
-            if (!hash_equals((string) pm_Session::getToken(), (string) $this->getRequest()->getPost('token'))) {
-                throw new pm_Exception('Invalid request token');
-            }
             Modules_Powerdns_Logger::clearStoredErrors();
             $this->_status->addInfo('Error log cleared.');
         }
