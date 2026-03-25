@@ -59,8 +59,9 @@ class Modules_Powerdns_ZoneFormatter
         }
 
         // Group rr entries by (name, type) to form rrsets
+        $zoneName = Modules_Powerdns_DnsUtils::ensureTrailingDot($zoneData['name'] ?? '');
         if (isset($zoneData['rr']) && is_array($zoneData['rr'])) {
-            $grouped = $this->groupRecords($zoneData['rr']);
+            $grouped = $this->groupRecords($zoneData['rr'], $zoneName);
             foreach ($grouped as $key => $records) {
                 [$name, $type] = explode('|', $key, 2);
                 $rrsets[] = $this->buildRrset($name, $type, $records);
@@ -76,7 +77,7 @@ class Modules_Powerdns_ZoneFormatter
      * @param  array $records Plesk rr array
      * @return array<string, array> Keyed by "host|type"
      */
-    private function groupRecords(array $records): array
+    private function groupRecords(array $records, string $zoneName = ''): array
     {
         $grouped = [];
 
@@ -89,6 +90,15 @@ class Modules_Powerdns_ZoneFormatter
             }
 
             $host = Modules_Powerdns_DnsUtils::ensureTrailingDot($rr['host'] ?? '');
+
+            // Skip records that don't belong to this zone (e.g., stale
+            // cross-zone records from domain aliases or copied zones).
+            // PowerDNS rejects these with "Name is out of zone".
+            if ($zoneName !== '' && !str_ends_with($host, $zoneName)) {
+                $this->logger->warn("Skipping out-of-zone record: {$host} (zone: {$zoneName})");
+                continue;
+            }
+
             $key = "{$host}|{$type}";
 
             $grouped[$key][] = $rr;
