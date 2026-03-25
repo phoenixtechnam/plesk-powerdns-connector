@@ -252,7 +252,7 @@ class IndexController extends pm_Controller_Action
             $total = count($domains);
             $this->_status->addInfo(
                 "Sync preview: {$total} eligible domain(s) found "
-                . "(DNS-disabled and secondary domains excluded). "
+                . '(DNS-disabled and secondary domains excluded). '
                 . "{$toCreate} to create, {$toUpdate} to update."
             );
         } catch (\Exception $e) {
