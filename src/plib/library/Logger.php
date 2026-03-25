@@ -39,7 +39,15 @@ class Modules_Powerdns_Logger
     private function write(string $level, string $message): void
     {
         $ts = date('Y-m-d H:i:s');
-        fwrite(STDERR, "[{$ts}] [{$level}] {$message}\n");
+        $line = "[{$ts}] [{$level}] {$message}\n";
+
+        // STDERR is only available in CLI context (backend script).
+        // In web context (admin panel), write to the PHP error log instead.
+        if (defined('STDERR')) {
+            fwrite(STDERR, $line);
+        } else {
+            error_log(rtrim($line));
+        }
     }
 
     /**
