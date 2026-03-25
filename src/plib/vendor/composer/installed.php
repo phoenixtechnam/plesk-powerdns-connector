@@ -3,7 +3,7 @@
         'name' => 'plesk/ext-powerdns',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => 'b04cd742069eefa8563cbdb480b6768293686979',
+        'reference' => '8849178227a0827b0d0dfd028751955105899eae',
         'type' => 'plesk-extension',
         'install_path' => __DIR__ . '/../../../../',
         'aliases' => array(),
@@ -40,7 +40,7 @@
         'plesk/ext-powerdns' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => 'b04cd742069eefa8563cbdb480b6768293686979',
+            'reference' => '8849178227a0827b0d0dfd028751955105899eae',
             'type' => 'plesk-extension',
             'install_path' => __DIR__ . '/../../../../',
             'aliases' => array(),
