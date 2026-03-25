@@ -1,4 +1,5 @@
 <?php
+
 // Copyright 2024. All rights reserved.
 // Note: strict_types intentionally omitted — Plesk's Zend Framework
 // passes values that may not satisfy strict type checking.

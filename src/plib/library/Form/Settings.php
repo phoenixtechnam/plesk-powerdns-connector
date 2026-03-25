@@ -1,4 +1,5 @@
 <?php
+
 // Copyright 2024. All rights reserved.
 // Note: strict_types intentionally omitted — Plesk's pm_Form_Simple
 // passes values that may not satisfy strict type checking.
