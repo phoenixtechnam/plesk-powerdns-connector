@@ -1,8 +1,7 @@
 <?php
-
-declare(strict_types=1);
-
 // Copyright 2024. All rights reserved.
+// Note: strict_types intentionally omitted — this script is invoked
+// by Plesk's loader which may pass non-strict types.
 
 /**
  * Custom DNS Backend Script for Plesk.

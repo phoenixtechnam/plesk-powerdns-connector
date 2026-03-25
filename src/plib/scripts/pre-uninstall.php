@@ -1,7 +1,4 @@
 <?php
-
-declare(strict_types=1);
-
 // Copyright 2024. All rights reserved.
 
 /**
