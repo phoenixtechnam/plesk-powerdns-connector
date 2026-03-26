@@ -4,7 +4,7 @@ install:
 	composer install
 
 test:
-	./src/plib/vendor/bin/phpunit
+	./src/plib/vendor/bin/phpunit --testsuite Unit
 
 lint:
 	./src/plib/vendor/bin/php-cs-fixer fix --dry-run --diff
@@ -17,7 +17,7 @@ analyse:
 
 package: clean
 	composer install --no-dev --optimize-autoloader
-	cd src && zip -r ../powerdns.zip . -x '*/vendor/phpunit/*' '*/vendor/phpstan/*' '*/vendor/friendsofphp/*'
+	cd src && zip -r ../powerdns.zip .
 	composer install
 
 clean:

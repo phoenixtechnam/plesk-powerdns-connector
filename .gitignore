@@ -15,5 +15,8 @@
 .DS_Store
 Thumbs.db
 
+# Composer vendor (installed via composer install, packaged into ZIP at release)
+src/plib/vendor/
+
 # Build artifacts
 powerdns.zip
